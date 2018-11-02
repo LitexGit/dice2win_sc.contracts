@@ -33,7 +33,7 @@ contract Payment_ETH {
     }
 
     //roundIdentifier is keccak256(lexicographic order of participant addresses+round)
-    mapping(bytes32 => mapping (address => uint256)) roundIdentifier_to_lockedAmount;
+    mapping(bytes32 => mapping (address => uint256)) public roundIdentifier_to_lockedAmount;
 
     uint256 public settle_timeout_min;
     uint256 public settle_timeout_max;
@@ -48,8 +48,24 @@ contract Payment_ETH {
     }
 
     /*
+     *   modifiers
+     */
+
+
+
+    /*
      *   public function
      */
+
+    function setSettleTimeout (
+        uint256 _settle_timeout_min,
+        uint256 _settle_timeout_max
+    )
+        public
+    {
+        settle_timeout_min = _settle_timeout_min;
+        settle_timeout_max = _settle_timeout_max;
+    }
 
     function openChannel(
         address participant1, 
@@ -60,7 +76,7 @@ contract Payment_ETH {
         public
         returns (bytes32) 
     {
-        emit ChannelOpened(channelIdentifier, participant1, participant2, settle_timeout);
+        emit ChannelOpened(participant1, participant2, channelIdentifier, settle_timeout);
     }
 
     function setTotalDeposit(
@@ -74,53 +90,68 @@ contract Payment_ETH {
         emit ChannelNewDeposit(channelIdentifier, participant, total_deposit);
     }
 
+    function cooperativeSettle (
+        address participant1_address,
+        uint256 participant1_balance,
+        address participant2_address,
+        uint256 participant2_balance,
+        bytes participant1_signature,
+        bytes participant2_signature
+    )
+        public
+    {
+        emit CooperativeSettled(participant1_address, participant2_address, participant1_balance, participant2_balance);
+    }
+
+    //balanceHash is keccak256(transferredAmount, lockedAmount, lockID)
     function closeChannel(
         address partner, 
-        bytes32 round, 
         bytes32 balanceHash, 
         uint256 nonce, 
         bytes signature
     )
         public
     {
-        emit ChannelClosed(channelIdentifier, msg.sender);
+        emit ChannelClosed(channelIdentifier, balanceHash, msg.sender);
     }
 
-    function partnerCloseChannel(
-        address partner, 
-        bytes32 round, 
+    //balanceHash is keccak256(transferredAmount, lockedAmount, lockID)
+    function nonclosingUpdateBalanceProof(
+        address nonclosing,
+        address closing, 
         bytes32 balanceHash, 
         uint256 nonce, 
         bytes signature
-        )
+    )
         public
     {
-        emit PartnerUpdateBalanceProof(channelIdentifier, msg.sender);
+        emit NonclosingUpdateBalanceProof(channelIdentifier, balanceHash, nonclosing);
     }
 
     function settleChannel(
         address participant1, 
         uint256 participant1_transferred_amount,
         uint256 participant1_locked_amount,
+        uint256 participant1_lock_id,
         address participant2,
         uint256 participant2_transferred_amount,
         uint256 participant2_locked_amount,
-        bytes32 round
+        uint256 participant2_lock_id
     )
         public
     {
-        emit ChannelSettled(channelIdentifier, participant1_transferred_amount, participant2_transferred_amount);
+        emit ChannelSettled(channelIdentifier, lockedIdentifier, participant1_transferred_amount, participant2_transferred_amount);
     }
 
     function unlock(
         address participant1,
         address participant2,
-        bytes256 round
+        uint256 lock_id 
     )
         public
     {
-        emit ChannelLockedSent(channelIdentifier, round, beneficiary, amount);
-        emit ChannelLockedReturn(channelIdentifier, round, beneficiary, amount);
+        emit ChannelLockedSent(channelIdentifier, beneficiary, amount);
+        emit ChannelLockedReturn(channelIdentifier, beneficiary, amount);
     }
 
     /*
@@ -128,9 +159,9 @@ contract Payment_ETH {
      */
 
     event ChannelOpened(
-        bytes32 indexed channel_identifier,
         address indexed participant1,
         address indexed participant2,
+        bytes32 indexed channelIdentifier,
         uint256 settle_timeout
     );
 
@@ -140,32 +171,40 @@ contract Payment_ETH {
         uint256 total_deposit
     );
 
-    event ChannelClosed(
-        bytes32 indexed channel_identifier,
-        address indexed closing_participant
+    event CooperativeSettled (
+        address indexed participant1,
+        address indexed participant2,
+        uint256 participant1_balance,
+        uint256 participant2_balance
     );
 
-    event PartnerUpdateBalanceProof(
+    event ChannelClosed(
         bytes32 indexed channel_identifier,
-        address indexed closing_partner
+        address indexed closing,
+        bytes32 balanceHash
+    );
+
+    event NonclosingUpdateBalanceProof(
+        bytes32 indexed channel_identifier,
+        address indexed nonclosing,
+        bytes32 balanceHash
     );
 
     event ChannelSettled(
         bytes32 indexed channelIdentifier, 
-        uint256 participant1_transferred_amount, 
-        uint256 participant2_transferred_amount
+        bytes32 indexed lockedIdentifier,
+        uint256 closing_transferred_amount, 
+        uint256 nonclosing_transferred_amount
     );
 
     event ChannelLockedSent(
         bytes32 indexed channelIdentifier, 
-        bytes32 indexed round, 
         beneficiary, 
         amount
     );
 
     event ChannelLockedReturn(
         bytes32 indexed channelIdentifier, 
-        bytes32 indexed round, 
         beneficiary, 
         amount
     );
