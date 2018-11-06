@@ -77,6 +77,12 @@ contract Payment_ETH {
         _;
     }
 
+    modifier isClosed (address participant, address partner) {
+        bytes32 channelIdentifier = getChannelIdentifier(participant, partner);
+        require(channels[channelIdentifier].state == 2, "channel should be closed");
+        _;
+    }
+
     modifier settleWindowValid (uint256 settleWindow) {
         require(settleWindow <= settle_window_max && settleWindow >= settle_window_min, "invalid settle window");
         _;
@@ -178,28 +184,63 @@ contract Payment_ETH {
     }
 
     //balanceHash is keccak256(transferredAmount, lockedAmount, lockID)
-    function closeChannel(
+    function closeChannel (
         address partner, 
         bytes32 balanceHash, 
         uint256 nonce, 
         bytes signature
     )
+        isOpen (msg.sender, partner)
         public
     {
-        emit ChannelClosed(channelIdentifier, balanceHash, msg.sender);
+        bytes32 channelIdentifier = getChannelIdentifier(msg.sender, partner);
+        Channel storage channel = channels[channelIdentifier];
+        Participant storage partnerStruct = channel.participants[partner];
+
+        if (nonce > 0) {
+            address recoveredPartner = recoverAddressFromBalanceProof(channelIdentifier, balanceHash, nonce, signature);
+            require(recoveredPartner == partner, "balance proof should be signed by partner");
+
+            updateParticipantBalanceProof(partnerStruct, balanceHash, nonce);
+        }
+        
+        channel.state = 2;
+        channel.participants[msg.sender].isCloser = true;
+        channel.settleBlock += uint256(block.number);
+
+        emit ChannelClosed(channelIdentifier, msg.sender, balanceHash);
     }
 
     //balanceHash is keccak256(transferredAmount, lockedAmount, lockID)
     function nonclosingUpdateBalanceProof(
-        address nonclosing,
         address closing, 
         bytes32 balanceHash, 
         uint256 nonce, 
         bytes signature
     )
+        isClosed(closing, msg.sender)
         public
     {
-        emit NonclosingUpdateBalanceProof(channelIdentifier, balanceHash, nonclosing);
+        require(balanceHash != 0x0 && nonce > 0, "invalid balance proof");
+
+        bytes32 channelIdentifier = getChannelIdentifier(msg.sender, closing);
+        Channel storage channel = channels[channelIdentifier];
+        Participant storage closingStruct = channel.participants[closing];
+        //require(channel.state == 2, "channel should be closed");
+        require(closingStruct.isCloser, "partner should be closer");
+        require(block.number <= channel.settleBlock, "channel should be in settlement window");
+
+        address recoveredClosing = recoverAddressFromBalanceProof(
+            channelIdentifier,
+            balanceHash,
+            nonce,
+            signature
+        );
+        require(recoveredClosing == closing, "signature should be signed by closing");
+
+        updateParticipantBalanceProof(closingStruct, balanceHash, nonce);
+
+        emit NonclosingUpdateBalanceProof(channelIdentifier, msg.sender, balanceHash);
     }
 
     function settleChannel(
@@ -212,9 +253,62 @@ contract Payment_ETH {
         uint256 participant2_locked_amount,
         uint256 participant2_lock_id
     )
+        isClosed(participant1, participant2)
         public
     {
-        emit ChannelSettled(channelIdentifier, lockedIdentifier, participant1_transferred_amount, participant2_transferred_amount);
+        bytes32 channelIdentifier = getChannelIdentifier(participant1, participant2);
+        Channel storage channel = channels[channelIdentifier];
+        
+        require(channel.settleBlock < block.number, "settlement window should be over");
+
+        Participant storage participant1Struct = channel.participants[participant1];
+        Participant storage participant2Struct = channel.participants[participant2];
+
+        verifyBalanceHashData(
+            participant1Struct,
+            participant1_transferred_amount,
+            participant1_locked_amount,
+            participant1_lock_id
+        );
+
+        verifyBalanceHashData(
+            participant2Struct,
+            participant2_transferred_amount,
+            participant2_locked_amount,
+            participant2_lock_id
+        );
+
+        bytes32 lockIdentifier = updateLockData(
+            channelIdentifier,
+            participant1,
+            participant1_locked_amount,
+            participant1_lock_id,
+            participant2,
+            participant2_locked_amount,
+            participant2_lock_id
+        );
+
+        delete channel.participants[participant1];
+        delete channel.participants[participant2];
+        delete channels[channelIdentifier];
+        delete participantsHash_to_channelCounter[getParticipantsHash(participant1, participant2)];
+
+        uint256 transferToParticipant1Amount;
+        uint256 transferToParticipant2Amount;
+        (
+            transferToParticipant1Amount, 
+            transferToParticipant2Amount
+        ) = getSettleTransferAmounts (
+            participant1Struct,
+            participant1_transferred_amount,
+            participant2Struct,
+            participant2_transferred_amount
+        );  
+        participant1.transfer(transferToParticipant1Amount);
+        participant2.transfer(transferToParticipant2Amount);
+
+        emit ChannelSettled(channelIdentifier, lockedIdentifier, participant1, transferToParticipant1Amount);
+        emit ChannelSettled(channelIdentifier, lockedIdentifier, participant2, transferToParticipant2Amount);
     }
 
     function unlock(
@@ -266,8 +360,8 @@ contract Payment_ETH {
     event ChannelSettled(
         bytes32 indexed channelIdentifier, 
         bytes32 indexed lockedIdentifier,
-        uint256 closing_transferred_amount, 
-        uint256 nonclosing_transferred_amount
+        address participant, 
+        uint256 transferToParticipantAmount
     );
 
     event ChannelLockedSent(
@@ -341,5 +435,117 @@ contract Payment_ETH {
             )
         );
         signatureAddress = ECVerify.ecverify(messageHash, signature);
+    }
+
+    function recoverAddressFromBalanceProof (
+        bytes32 channelIdentifier,
+        bytes32 balanceHash,
+        uint256 nonce,
+        bytes signature
+    )
+        view
+        internal
+        returns (address signatureAddress)
+    {
+        bytes32 messageHash = keccak256(
+            abi.encodePacked(
+                address(this),
+                channelIdentifier,
+                balanceHash,
+                nonce
+            )
+        );
+        signatureAddress = ECVerify.ecveriry(messageHash, signature);
+    }
+
+    function updateParticipantBalanceProof (
+        Participant storage participant,
+        bytes32 balanceHash,
+        uint256 nonce
+    )
+        internal
+    {
+        require(nonce > participant.nonce, "nonce should be monotonic");
+
+        participant.balanceHash = balanceHash;
+        participant.nonce = nonce;
+    }
+
+    function verifyBalanceHashData (
+        Participant storage participant,
+        uint256 transferredAmount,
+        uint256 lockedAmount,
+        uint256 lockID
+    )
+        view
+        internal
+    {
+        if (participant.balanceHash == 0x0 && transferredAmount == 0 && lockedAmount == 0 && lockID == 0) {
+            return;
+        }
+
+        bytes32 balanceHash = keccak256(abi.encodePacked(transferredAmount, lockedAmount, lockID));
+        require(balanceHash == participant.balanceHash, "balance hash should be correct");
+    }
+
+    function getSettleTransferAmounts (
+        Participant storage participant1,
+        uint256 participant1_transferred_amount,
+        Participant storage participant2,
+        uint256 participant2_transferred_amount
+    )
+        view
+        internal
+        returns (uint256 transferToParticipant1Amount, uint256 transferToParticipant2Amount)
+    {
+        uint256 margin;
+        uint256 min;
+        (margin, min) = magicSubtract(participant1_transferred_amount, participant2_transferred_amount);
+        if (min == participant1_transferred_amount) {
+            margin = participant2.deposit > margin ? margin : participant2.deposit;
+            transferToParticipant1Amount = participant1.deposit + margin;
+            transferToParticipant2Amount = participant2.deposit - margin;
+        } else {
+            margin = participant1.deposit > margin ? margin : participant1.deposit;
+            transferToParticipant1Amount = participant1.deposit - margin;
+            transferToParticipant2Amount = participant2.deposit + margin;
+        }
+    }
+
+    function updateLockData(
+        bytes32 channelIdentifier,
+        address participant1,
+        uint256 participant1_locked_amount,
+        uint256 participant1_lock_id,
+        address participant2,
+        uint256 participant2_locked_amount,
+        uint256 participant2_lock_id
+    )
+        internal
+        returns (bytes32 lockIdentifier)
+    {
+        if (participant1_lock_id == participant2_lock_id) {
+            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant1_lock_id));
+        } else if (participant1_lock_id < participant2_lock_id) {
+            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant2_lock_id));
+            participant1_locked_amount = 0;
+        } else {
+            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant1_lock_id));
+            participant2_locked_amount = 0;
+        }
+
+        lockIdentifier_to_lockedAmount[lockIdentifier][participant1] = participant1_locked_amount;
+        lockIdentifier_to_lockedAmount[lockIdentifier][participant2] = participant2_locked_amount;
+    }
+
+    function magicSubtract(
+        uint256 a,
+        uint256 b
+    )
+        pure
+        internal
+        returns (uint256, uint256)
+    {
+        return a > b ? (a - b, b) : (b - a, a);
     }
 }
