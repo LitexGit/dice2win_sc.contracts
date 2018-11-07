@@ -318,32 +318,41 @@ contract Payment_ETH {
     )
         public
     {
-        address winner = game.getResult(lockIdentifier);
-        require(winner != 0x0, "result should already came out");
-
         uint256 participant1LockedAmount = lockIdentifier_to_lockedAmount[lockIdentifier][participant1];
-
         uint256 participant2LockedAmount = lockIdentifier_to_lockedAmount[lockIdentifier][participant2];
 
-        if (winner == participant1) {
-            if (participant2LockedAmount > 0) {
-                participant1.transfer(participant2LockedAmount);
-                emit ChannelLockedSent(lockIdentifier, participant1, participant2LockedAmount);
-            }
+        address winner = game.getResult(lockIdentifier);
+        
+        if (winner == 0x0) {
             if (participant1LockedAmount > 0) {
                 participant1.transfer(participant1LockedAmount);
                 emit ChannelLockedReturn(lockIdentifier, participant1, participant1LockedAmount);
-            }
-        } else {
-            if (participant1LockedAmount > 0) {
-                participant2.transfer(participant1LockedAmount);
-                emit ChannelLockedSent(lockIdentifier, participant2, participant1LockedAmount);
             }
             if (participant2LockedAmount > 0) {
                 participant2.transfer(participant2LockedAmount);
                 emit ChannelLockedReturn(lockIdentifier, participant2, participant2LockedAmount);
             }
-        }        
+        } else {
+            if (winner == participant1) {
+                if (participant2LockedAmount > 0) {
+                    participant1.transfer(participant2LockedAmount);
+                    emit ChannelLockedSent(lockIdentifier, participant1, participant2LockedAmount);
+                }
+                if (participant1LockedAmount > 0) {
+                    participant1.transfer(participant1LockedAmount);
+                    emit ChannelLockedReturn(lockIdentifier, participant1, participant1LockedAmount);
+                }
+            } else {
+                if (participant1LockedAmount > 0) {
+                    participant2.transfer(participant1LockedAmount);
+                    emit ChannelLockedSent(lockIdentifier, participant2, participant1LockedAmount);
+                }
+                if (participant2LockedAmount > 0) {
+                    participant2.transfer(participant2LockedAmount);
+                    emit ChannelLockedReturn(lockIdentifier, participant2, participant2LockedAmount);
+                }
+            }       
+        } 
     }
 
     /*
