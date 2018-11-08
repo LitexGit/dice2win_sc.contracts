@@ -1,1 +1,4 @@
 build/
+.vscode/
+web3/node_modules/
+web3/package-lock.json

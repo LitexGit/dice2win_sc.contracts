@@ -21,11 +21,11 @@ module.exports = {
       port: 7545,
       network_id: "*"
     }
-  },
-  solc: {
-    optimizer: { // Turning on compiler optimization that removes some local variables during compilation
-      enabled: true,
-      runs: 200
-    }
   }
+  // solc: {
+  //   optimizer: { // Turning on compiler optimization that removes some local variables during compilation
+  //     enabled: true,
+  //     runs: 200
+  //   }
+  // }
 };
