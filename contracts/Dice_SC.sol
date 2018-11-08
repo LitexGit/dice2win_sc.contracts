@@ -84,7 +84,7 @@ contract Dice_SC {
     )
         public
     {
-        require(initiatorHashR == keccak256(initiatorR), "initiatorR should be correct");
+        require(initiatorHashR == keccak256(abi.encodePacked(initiatorR)), "initiatorR should be correct");
 
         address recoveredInitiator = recoverInitiator(
             channelIdentifier, 
@@ -111,8 +111,8 @@ contract Dice_SC {
                 acceptorR
             )
         );
-        address recoveredAcceptor = ECVerify.ecverify(acceptorMessageHash, acceptorSignature);
-        require(recoveredAcceptor == negative, "signature should be signed by initiator");
+        //address recoveredAcceptor = ECVerify.ecverify(acceptorMessageHash, acceptorSignature);
+        require(ECVerify.ecverify(acceptorMessageHash, acceptorSignature) == negative, "signature should be signed by initiator");
 
         address winner = settleBet (
             betMask,
@@ -195,7 +195,7 @@ contract Dice_SC {
         DiceInfo storage diceInfo = roundIdentifier_to_diceInfo[roundIdentifier];
         require(diceInfo.state == 1, "state should be waiting for reveal");
 
-        require(keccak256(initiatorR) == diceInfo.initiatorHashR, "initiatorR should be correct");
+        require(keccak256(abi.encodePacked(initiatorR)) == diceInfo.initiatorHashR, "initiatorR should be correct");
 
         require(block.number <= diceInfo.lastRevealBlock, "reveal time window should be open");
 
@@ -217,6 +217,7 @@ contract Dice_SC {
     function getResult (
         bytes32 roundIdentifier
     )
+        view
         public
         returns (address)
     {
@@ -225,7 +226,7 @@ contract Dice_SC {
         if (diceInfo.state == 1) {
             require(block.number > diceInfo.lastRevealBlock, "reveal time window should be closed");
         } 
-        
+
         return roundIdentifier_to_winner[roundIdentifier];
     }
 

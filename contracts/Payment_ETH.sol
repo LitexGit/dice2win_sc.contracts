@@ -1,6 +1,7 @@
 pragma solidity ^0.4.24;
 
-import "./Dice_SC.sol" as Game;
+//import "./Dice_SC.sol" as Game;
+import "./Dice_SC.sol";
 import "./ECVerify.sol"; 
 
 contract Payment_ETH {
@@ -15,7 +16,7 @@ contract Payment_ETH {
      *   state
      */
 
-    Game public game;
+    Dice_SC public game;
 
     struct Participant {
         uint256 deposit;
@@ -62,7 +63,7 @@ contract Payment_ETH {
     ) 
         public 
     {
-        game = Game(_game);
+        game = Dice_SC(_game);
         settle_window_min = _settle_window_min;
         settle_window_max = _settle_window_max;
     }
@@ -152,7 +153,7 @@ contract Payment_ETH {
         );
         require(recoveredParticipant1 == participant1_address, "signature should be signed by participant1");
 
-        address recoveredParticipant2 = recoverAddressFromCooperativeSettleSignature(
+        recoveredParticipant1 = recoverAddressFromCooperativeSettleSignature(
             channelIdentifier, 
             participant1_address, 
             participant1_balance, 
@@ -160,7 +161,17 @@ contract Payment_ETH {
             participant2_balance, 
             participant2_signature
         );
-        require(recoveredParticipant2 == participant2_address, "signature should be signed by participant2");
+        require(recoveredParticipant1 == participant2_address, "signature should be signed by participant2");
+
+        // address recoveredParticipant2 = recoverAddressFromCooperativeSettleSignature(
+        //     channelIdentifier, 
+        //     participant1_address, 
+        //     participant1_balance, 
+        //     participant2_address, 
+        //     participant2_balance, 
+        //     participant2_signature
+        // );
+        // require(recoveredParticipant2 == participant2_address, "signature should be signed by participant2");
 
         Channel storage channel = channels[channelIdentifier];
 
@@ -253,12 +264,13 @@ contract Payment_ETH {
         uint256 participant2_locked_amount,
         uint256 participant2_lock_id
     )
-        isClosed(participant1, participant2)
+        //isClosed(participant1, participant2)
         public
     {
         bytes32 channelIdentifier = getChannelIdentifier(participant1, participant2);
         Channel storage channel = channels[channelIdentifier];
         
+        require(channel.state == 2, "channel state shold be closed");
         require(channel.settleBlock < block.number, "settlement window should be over");
 
         Participant storage participant1Struct = channel.participants[participant1];
@@ -293,22 +305,39 @@ contract Payment_ETH {
         delete channels[channelIdentifier];
         delete participantsHash_to_channelCounter[getParticipantsHash(participant1, participant2)];
 
-        uint256 transferToParticipant1Amount;
-        uint256 transferToParticipant2Amount;
+        // uint256 transferToParticipant1Amount;
+        // uint256 transferToParticipant2Amount;
         (
-            transferToParticipant1Amount, 
-            transferToParticipant2Amount
+            participant1_transferred_amount, 
+            participant2_transferred_amount
         ) = getSettleTransferAmounts (
             participant1Struct,
             participant1_transferred_amount,
             participant2Struct,
             participant2_transferred_amount
         );  
-        participant1.transfer(transferToParticipant1Amount);
-        participant2.transfer(transferToParticipant2Amount);
+        participant1.transfer(participant1_transferred_amount);
+        participant2.transfer(participant2_transferred_amount);
 
-        emit ChannelSettled(channelIdentifier, lockedIdentifier, participant1, transferToParticipant1Amount);
-        emit ChannelSettled(channelIdentifier, lockedIdentifier, participant2, transferToParticipant2Amount);
+        emit ChannelSettled(channelIdentifier, lockIdentifier, participant1, participant1_transferred_amount);
+        emit ChannelSettled(channelIdentifier, lockIdentifier, participant2, participant2_transferred_amount);
+
+        // uint256 transferToParticipant1Amount;
+        // uint256 transferToParticipant2Amount;
+        // (
+        //     transferToParticipant1Amount, 
+        //     transferToParticipant2Amount
+        // ) = getSettleTransferAmounts (
+        //     participant1Struct,
+        //     participant1_transferred_amount,
+        //     participant2Struct,
+        //     participant2_transferred_amount
+        // );  
+        // participant1.transfer(transferToParticipant1Amount);
+        // participant2.transfer(transferToParticipant2Amount);
+
+        // emit ChannelSettled(channelIdentifier, lockIdentifier, participant1, transferToParticipant1Amount);
+        // emit ChannelSettled(channelIdentifier, lockIdentifier, participant2, transferToParticipant2Amount);
     }
 
     function unlock(
@@ -322,7 +351,7 @@ contract Payment_ETH {
         uint256 participant2LockedAmount = lockIdentifier_to_lockedAmount[lockIdentifier][participant2];
 
         address winner = game.getResult(lockIdentifier);
-        
+
         if (winner == 0x0) {
             if (participant1LockedAmount > 0) {
                 participant1.transfer(participant1LockedAmount);
@@ -399,14 +428,14 @@ contract Payment_ETH {
 
     event ChannelLockedSent(
         bytes32 indexed channelIdentifier, 
-        beneficiary, 
-        amount
+        address indexed beneficiary, 
+        uint256 amount
     );
 
     event ChannelLockedReturn(
         bytes32 indexed channelIdentifier, 
-        beneficiary, 
-        amount
+        address indexed beneficiary, 
+        uint256 amount
     );
 
     /*
@@ -432,14 +461,14 @@ contract Payment_ETH {
         address participant,
         address partner
     )
-        view
+        pure
         internal
         returns (bytes32)
     {
         require(participant != 0x0 && partner != 0x0 && participant != partner, "invalid input");
 
         if (participant < partner) {
-            return keccac256(abi.encodePacked(participant, partner));
+            return keccak256(abi.encodePacked(participant, partner));
         } else {
             return keccak256(abi.encodePacked(partner, participant));
         }
@@ -488,7 +517,7 @@ contract Payment_ETH {
                 nonce
             )
         );
-        signatureAddress = ECVerify.ecveriry(messageHash, signature);
+        signatureAddress = ECVerify.ecverify(messageHash, signature);
     }
 
     function updateParticipantBalanceProof (
