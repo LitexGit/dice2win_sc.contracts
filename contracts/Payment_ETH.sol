@@ -94,25 +94,30 @@ contract Payment_ETH {
      */
 
     function openChannel(
-        address participant1, 
-        address participant2, 
+        address participant, 
+        address partner, 
         uint256 settle_window
     )
         settleWindowValid(settle_window)
         public
-        returns (bytes32) 
+        payable
     {
-        bytes32 participantsHash = getParticipantsHash(participant1, participant2);
+        bytes32 participantsHash = getParticipantsHash(participant, partner);
         require(participantsHash_to_channelCounter[participantsHash] == 0, "channel already exists");
+
+        require(msg.value > 0, "should deposit when open channel");
 
         channelCounter += 1;
         participantsHash_to_channelCounter[participantsHash] = channelCounter;
 
-        bytes32 channelIdentifier = getChannelIdentifier(participant1, participant2);
+        bytes32 channelIdentifier = getChannelIdentifier(participant, partner);
         channels[channelIdentifier].state = 1;
         channels[channelIdentifier].settleBlock = settle_window;
 
-        emit ChannelOpened(participant1, participant2, channelIdentifier, settle_window);
+        Participant storage participantStruct = channels[channelIdentifier].participants[participant];
+        participantStruct.deposit = msg.value;
+
+        emit ChannelOpened(participant, partner, channelIdentifier, settle_window, msg.value);
     }
 
     function setTotalDeposit(
@@ -384,6 +389,21 @@ contract Payment_ETH {
         } 
     }
 
+    function getChannelIdentifier (
+        address participant, 
+        address partner
+    ) 
+        view
+        public
+        returns (bytes32)
+    {
+        require(participant != 0x0 && partner != 0x0 && participant != partner, "invalid input");
+
+        bytes32 participantsHash = getParticipantsHash(participant, partner);
+        uint256 counter = participantsHash_to_channelCounter[participantsHash];
+        return keccak256((abi.encodePacked(participantsHash, counter)));
+    }    
+
     /*
      *   event
      */
@@ -391,8 +411,9 @@ contract Payment_ETH {
     event ChannelOpened(
         address indexed participant1,
         address indexed participant2,
-        bytes32 indexed channelIdentifier,
-        uint256 settle_timeout
+        bytes32 channelIdentifier,
+        uint256 settle_timeout,
+        uint256 amount
     );
 
     event ChannelNewDeposit(
@@ -441,21 +462,6 @@ contract Payment_ETH {
     /*
      *   private function
      */
-
-    function getChannelIdentifier (
-        address participant, 
-        address partner
-    ) 
-        view
-        internal
-        returns (bytes32)
-    {
-        require(participant != 0x0 && partner != 0x0 && participant != partner, "invalid input");
-
-        bytes32 participantsHash = getParticipantsHash(participant, partner);
-        uint256 counter = participantsHash_to_channelCounter[participantsHash];
-        return keccak256((abi.encodePacked(participantsHash, counter)));
-    }    
 
     function getParticipantsHash(
         address participant,
