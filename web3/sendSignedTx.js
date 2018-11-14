@@ -2,7 +2,7 @@ const Tx = require('ethereumjs-tx')
 
 const Web3 = require('web3');
 
-var web3 = new Web3('http://18.179.206.91:8545');  //rinkeby
+var web3 = new Web3('http://54.250.21.165:8545');  //rinkeby
 //const web3 = new Web3('ws://54.249.21.74:8546'); //mainnet
 //const web3 = new Web3('http://54.249.21.74:8545'); //mainnet
 

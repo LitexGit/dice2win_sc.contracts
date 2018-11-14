@@ -278,24 +278,26 @@ contract Payment_ETH {
         require(channel.state == 2, "channel state shold be closed");
         require(channel.settleBlock < block.number, "settlement window should be over");
 
-        Participant storage participant1Struct = channel.participants[participant1];
-        Participant storage participant2Struct = channel.participants[participant2];
-
         verifyBalanceHashData(
-            participant1Struct,
+            channel.participants[participant1],
             participant1_transferred_amount,
             participant1_locked_amount,
             participant1_lock_id
         );
 
         verifyBalanceHashData(
-            participant2Struct,
+            channel.participants[participant2],
             participant2_transferred_amount,
             participant2_locked_amount,
             participant2_lock_id
         );
 
-        bytes32 lockIdentifier = updateLockData(
+        bytes32 lockIdentifier;
+        (
+            lockIdentifier,
+            participant1_locked_amount,
+            participant2_locked_amount
+        ) = updateLockData(
             channelIdentifier,
             participant1,
             participant1_locked_amount,
@@ -305,27 +307,46 @@ contract Payment_ETH {
             participant2_lock_id
         );
 
-        delete channel.participants[participant1];
-        delete channel.participants[participant2];
-        delete channels[channelIdentifier];
-        delete participantsHash_to_channelCounter[getParticipantsHash(participant1, participant2)];
-
         // uint256 transferToParticipant1Amount;
         // uint256 transferToParticipant2Amount;
         (
             participant1_transferred_amount, 
             participant2_transferred_amount
         ) = getSettleTransferAmounts (
-            participant1Struct,
+            channel.participants[participant1],
             participant1_transferred_amount,
-            participant2Struct,
-            participant2_transferred_amount
+            participant1_locked_amount,
+            channel.participants[participant2],
+            participant2_transferred_amount,
+            participant2_locked_amount
         );  
-        participant1.transfer(participant1_transferred_amount);
-        participant2.transfer(participant2_transferred_amount);
 
-        emit ChannelSettled(channelIdentifier, lockIdentifier, participant1, participant1_transferred_amount);
-        emit ChannelSettled(channelIdentifier, lockIdentifier, participant2, participant2_transferred_amount);
+        require(
+            participant1_locked_amount + participant2_locked_amount + participant1_transferred_amount + participant2_transferred_amount <= channel.participants[participant1].deposit + channel.participants[participant2].deposit, 
+            "cannot withdraw more value than deposit"
+        );
+
+        delete channel.participants[participant1];
+        delete channel.participants[participant2];
+        delete channels[channelIdentifier];
+        delete participantsHash_to_channelCounter[getParticipantsHash(participant1, participant2)];
+
+        if (participant1_transferred_amount > 0) {
+            participant1.transfer(participant1_transferred_amount);
+
+        } 
+
+        if (participant2_transferred_amount > 0) {
+            participant2.transfer(participant2_transferred_amount);
+        }
+
+        emit ChannelSettled(
+            channelIdentifier, 
+            participant1, 
+            participant2, 
+            lockIdentifier, 
+            participant1_transferred_amount, participant2_transferred_amount
+        );
 
         // uint256 transferToParticipant1Amount;
         // uint256 transferToParticipant2Amount;
@@ -354,6 +375,9 @@ contract Payment_ETH {
     {
         uint256 participant1LockedAmount = lockIdentifier_to_lockedAmount[lockIdentifier][participant1];
         uint256 participant2LockedAmount = lockIdentifier_to_lockedAmount[lockIdentifier][participant2];
+
+        delete lockIdentifier_to_lockedAmount[lockIdentifier][participant1];
+        delete lockIdentifier_to_lockedAmount[lockIdentifier][participant2];
 
         address winner = game.getResult(lockIdentifier);
 
@@ -442,9 +466,11 @@ contract Payment_ETH {
 
     event ChannelSettled(
         bytes32 indexed channelIdentifier, 
-        bytes32 indexed lockedIdentifier,
-        address participant, 
-        uint256 transferToParticipantAmount
+        address indexed participant1,
+        address indexed participant2,
+        bytes32 lockedIdentifier,
+        uint256 transferToParticipant1Amount, 
+        uint256 transferToParticipant2Amount
     );
 
     event ChannelLockedSent(
@@ -559,8 +585,10 @@ contract Payment_ETH {
     function getSettleTransferAmounts (
         Participant storage participant1,
         uint256 participant1_transferred_amount,
+        uint256 participant1_locked_amount,
         Participant storage participant2,
-        uint256 participant2_transferred_amount
+        uint256 participant2_transferred_amount,
+        uint256 participant2_locked_amount
     )
         view
         internal
@@ -568,15 +596,20 @@ contract Payment_ETH {
     {
         uint256 margin;
         uint256 min;
-        (margin, min) = magicSubtract(participant1_transferred_amount, participant2_transferred_amount);
+
+        (margin, min) = magicSubtract(
+            safeAddition(participant1_transferred_amount, participant1_locked_amount),
+            safeAddition(participant2_transferred_amount, participant2_locked_amount)
+        );
+
         if (min == participant1_transferred_amount) {
             margin = participant2.deposit > margin ? margin : participant2.deposit;
-            transferToParticipant1Amount = participant1.deposit + margin;
-            transferToParticipant2Amount = participant2.deposit - margin;
+            transferToParticipant1Amount = safeSubtract(participant1.deposit + margin, participant2_locked_amount);
+            transferToParticipant2Amount = safeSubtract(participant2.deposit - margin, participant1_locked_amount);
         } else {
             margin = participant1.deposit > margin ? margin : participant1.deposit;
-            transferToParticipant1Amount = participant1.deposit - margin;
-            transferToParticipant2Amount = participant2.deposit + margin;
+            transferToParticipant1Amount = safeSubtract(participant1.deposit - margin, participant2_locked_amount);
+            transferToParticipant2Amount = safeSubtract(participant2.deposit + margin, participant1_locked_amount);
         }
     }
 
@@ -590,20 +623,37 @@ contract Payment_ETH {
         uint256 participant2_lock_id
     )
         internal
-        returns (bytes32 lockIdentifier)
+        returns (bytes32 lockIdentifier, uint256 _participant1_locked_amount, uint256 _participant2_locked_amount)
     {
-        if (participant1_lock_id == participant2_lock_id) {
-            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant1_lock_id));
-        } else if (participant1_lock_id < participant2_lock_id) {
-            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant2_lock_id));
-            participant1_locked_amount = 0;
-        } else {
-            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant1_lock_id));
-            participant2_locked_amount = 0;
+        if (participant1_lock_id == 0 && participant2_lock_id == 0) {
+            lockIdentifier = 0x0;
+            _participant1_locked_amount = 0;
+            _participant2_locked_amount = 0;
+            return;
         }
 
-        lockIdentifier_to_lockedAmount[lockIdentifier][participant1] = participant1_locked_amount;
-        lockIdentifier_to_lockedAmount[lockIdentifier][participant2] = participant2_locked_amount;
+        if (participant1_lock_id == participant2_lock_id) {
+            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant1_lock_id));
+            _participant1_locked_amount = participant1_locked_amount;
+            _participant2_locked_amount = participant2_locked_amount;
+        } else if (participant1_lock_id < participant2_lock_id) {
+            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant2_lock_id));
+            _participant1_locked_amount = 0;
+            _participant2_locked_amount = participant2_locked_amount;
+        } else {
+            lockIdentifier = keccak256(abi.encodePacked(channelIdentifier, participant1_lock_id));
+            _participant2_locked_amount = 0;
+            _participant1_locked_amount = participant1_locked_amount;
+        }
+
+        Channel storage channel = channels[channelIdentifier];
+        require(
+            safeAddition(_participant1_locked_amount, _participant2_locked_amount) <= channel.participants[participant1].deposit + channel.participants[participant2].deposit, 
+            "cannot lock more value than total deposit"
+        );
+
+        lockIdentifier_to_lockedAmount[lockIdentifier][participant1] = _participant1_locked_amount;
+        lockIdentifier_to_lockedAmount[lockIdentifier][participant2] = _participant2_locked_amount;
     }
 
     function magicSubtract(
@@ -615,5 +665,22 @@ contract Payment_ETH {
         returns (uint256, uint256)
     {
         return a > b ? (a - b, b) : (b - a, a);
+    }
+
+    function safeAddition(uint256 a, uint256 b)
+        pure
+        internal
+        returns (uint256 sum)
+    {
+        sum = a + b;
+        require(sum >= a && sum >= b, "unsafe add");
+    }
+
+    function safeSubtract(uint256 a, uint256 b)
+        pure
+        internal
+        returns (uint256 sub)
+    {
+        sub = a > b ? a - b : 0;
     }
 }

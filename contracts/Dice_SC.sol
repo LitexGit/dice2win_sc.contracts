@@ -14,9 +14,6 @@ contract Dice_SC {
      *   state
      */
 
-    // only paymentContract can call getRoundResult
-    //address public paymentContract;
-
     // roundIdentifier is keccak256(channelIdentifier, round)
     mapping (bytes32 => DiceInfo) public roundIdentifier_to_diceInfo;
 
@@ -108,6 +105,7 @@ contract Dice_SC {
                 positive,
                 negative,
                 initiatorHashR,
+                initiatorSignature,
                 acceptorR
             )
         );
@@ -164,6 +162,8 @@ contract Dice_SC {
             channelIdentifier,
             round
         );
+
+        require(roundIdentifier_to_winner[roundIdentifier] == 0x0, "should not settle again when already settled");
 
         DiceInfo storage diceInfo = roundIdentifier_to_diceInfo[roundIdentifier];
         diceInfo.betMask = betMask;
