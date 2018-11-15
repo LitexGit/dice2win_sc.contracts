@@ -426,7 +426,27 @@ contract Payment_ETH {
         bytes32 participantsHash = getParticipantsHash(participant, partner);
         uint256 counter = participantsHash_to_channelCounter[participantsHash];
         return keccak256((abi.encodePacked(participantsHash, counter)));
-    }    
+    }
+
+    /*
+     *   external function
+     */    
+
+    function getParticipantInfo(
+        bytes32 channelIdentifier,
+        address participant
+    )
+        view
+        external
+        returns (uint256 deposit, bool isCloser, bytes32 balanceHash, uint256 nonce)
+    {
+        Channel storage channel = channels[channelIdentifier];
+        Participant storage participantStruct = channel.participants[participant];
+        deposit = participantStruct.deposit;
+        isCloser = participantStruct.isCloser;
+        balanceHash = participantStruct.balanceHash;
+        nonce = participantStruct.nonce;
+    }
 
     /*
      *   event

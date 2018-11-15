@@ -7,7 +7,7 @@ const web3 = new Web3('http://54.250.21.165:8545');  //rinkeby
 const {sendSignedTx} = require('./sendSignedTx');
 const {myEcsign} = require('./myEcsign');
 
-const diceContract = "0xad6C7F6785184B3F7941717D13ca86b34FC04cfD";
+const diceContract = "0x406a9aCC62d488f7396e24750767aa8E665252C2";
 
 const p1 = "0xa08105d7650Fe007978a291CcFECbB321fC21ffe";
 const p1PrivateKey = new Buffer('6A22D7D5D87EFC4A1375203B7E54FBCF35FAA84975891C5E3D12BE86C579A6E5', 'hex');

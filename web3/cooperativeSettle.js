@@ -9,7 +9,7 @@ const ethUtil = require('ethereumjs-util');
 const {sendSignedTx} = require('./sendSignedTx');
 const {myEcsign} = require('./myEcsign');
 
-const paymentContract = "0x6790Fe8e7FFEAF220C08bC58DEBA25b75CCA68C7";
+const paymentContract = "0x86364E2a57C4040d94Ab1440E48693c6e7483c30";
 const settleWindow = 3;
 
 const diceContract = "0xAAde0B86b540Cb25261876518AeEe4B44Bb6d849";
