@@ -209,9 +209,9 @@ contract Dice_SC {
         );
         roundIdentifier_to_winner[roundIdentifier] = winner;
 
-        delete roundIdentifier_to_diceInfo[roundIdentifier];
-
         emit InitiatorRevealed(diceInfo.positive, diceInfo.negative, roundIdentifier, winner);
+
+        delete roundIdentifier_to_diceInfo[roundIdentifier];
     }
 
     function getResult (

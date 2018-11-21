@@ -9,10 +9,8 @@ const ethUtil = require('ethereumjs-util');
 const {sendSignedTx} = require('./sendSignedTx');
 const {myEcsign} = require('./myEcsign');
 
-const paymentContract = "0x86364E2a57C4040d94Ab1440E48693c6e7483c30";
+const paymentContract = "0x4B70A4d4d885cb397E2bD5b0A77DA9bD3EEb033e";
 const settleWindow = 3;
-
-const diceContract = "0xAAde0B86b540Cb25261876518AeEe4B44Bb6d849";
 
 const p1 = "0xa08105d7650Fe007978a291CcFECbB321fC21ffe";
 const p1PrivateKey = new Buffer('6A22D7D5D87EFC4A1375203B7E54FBCF35FAA84975891C5E3D12BE86C579A6E5', 'hex');
@@ -197,7 +195,10 @@ async function testUnlock(lockIdentifier) {
     console.log("unlock receipt", receipt);
 }
 
-//testCooperativeSettle();
+
+
+
+//testCooperativeSettle('0.02', '0.08');
 
 //testCloseChannelWithNonlock();
 
@@ -207,7 +208,7 @@ async function testUnlock(lockIdentifier) {
 
 //testSettleChannelWithLock('0.02', '0.06', '0.05', '0.01');
 
-testUnlock('0xca148301516294696d67d0a274cadf9b5e8d340498aa4b6afa769c054050862b');
+testUnlock('0x30c84fef13bda51b34671f05bfc5b7b108913b729dc6e4a49a2d430cc03ef47a');
 
 
 

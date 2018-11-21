@@ -132,7 +132,7 @@ contract Payment_ETH {
         Participant storage participant_struct = channels[channelIdentifier].participants[participant];
         participant_struct.deposit += msg.value;
 
-        emit ChannelNewDeposit(channelIdentifier, participant, participant_struct.deposit);
+        emit ChannelNewDeposit(channelIdentifier, participant, msg.value, participant_struct.deposit);
     }
 
     function cooperativeSettle (
@@ -181,7 +181,10 @@ contract Payment_ETH {
         Channel storage channel = channels[channelIdentifier];
 
         uint256 totalDeposit = channel.participants[participant1_address].deposit + channel.participants[participant2_address].deposit;
-        require(totalDeposit == participant1_balance + participant2_balance, "the sum of balances should be equal to the total deposit");
+        require(
+            totalDeposit == safeAddition(participant1_balance, participant2_balance), 
+            "the sum of balances should be equal to the total deposit"
+        );
 
         delete channel.participants[participant1_address];
         delete channel.participants[participant2_address];
@@ -196,7 +199,7 @@ contract Payment_ETH {
             participant2_address.transfer(participant2_balance);
         }
         
-        emit CooperativeSettled(channelIdentifier, participant1_balance, participant2_balance);
+        emit CooperativeSettled(channelIdentifier, participant1_address, participant2_address, participant1_balance, participant2_balance);
     }
 
     //balanceHash is keccak256(transferredAmount, lockedAmount, lockID)
@@ -463,11 +466,14 @@ contract Payment_ETH {
     event ChannelNewDeposit(
         bytes32 indexed channel_identifier,
         address indexed participant,
+        uint256 new_deposit,
         uint256 total_deposit
     );
 
     event CooperativeSettled (
         bytes32 indexed channelIdentifier,
+        address indexed participant1_address, 
+        address indexed participant2_address,
         uint256 participant1_balance,
         uint256 participant2_balance
     );

@@ -4,3 +4,4 @@ package-lock.json
 web3/node_modules/
 node_modules/
 web3/package-lock.json
+.DS_Store

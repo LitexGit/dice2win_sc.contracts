@@ -7,7 +7,7 @@ const web3 = new Web3('http://54.250.21.165:8545');  //rinkeby
 const {sendSignedTx} = require('./sendSignedTx');
 const {myEcsign} = require('./myEcsign');
 
-const diceContract = "0x406a9aCC62d488f7396e24750767aa8E665252C2";
+const diceContract = "0xE2C9B1Da64dEa25FF5e5819C8F6C40348EB521DE";
 
 const p1 = "0xa08105d7650Fe007978a291CcFECbB321fC21ffe";
 const p1PrivateKey = new Buffer('6A22D7D5D87EFC4A1375203B7E54FBCF35FAA84975891C5E3D12BE86C579A6E5', 'hex');
@@ -55,6 +55,6 @@ async function testAcceptorSettle(channelIdentifier, round, betMask, modulo, pos
 
 
 
-//testInitiatorSettle("0x71baf12e8bee587744419563c5e4e84c776918b26c6ff8ef8ce0e5f240faee12", 1, 1, 2, p1, p2);
+testInitiatorSettle("0xde0f0ddef46ee1317241316908cb3ac3904124a224b1582b1c2ff01d40df51cf", 1, 1, 2, p1, p2);
 
-testAcceptorSettle("0x71baf12e8bee587744419563c5e4e84c776918b26c6ff8ef8ce0e5f240faee12", 1, 1, 2, p1, p2);
+//testAcceptorSettle("0x6496597a3f37a83bc0611ba90e867e26da5d6daec5e426405dadb3cf2e7743f0", 1, 1, 2, p1, p2);
