@@ -195,7 +195,7 @@ async function testUnlock(lockIdentifier) {
     console.log("unlock receipt", receipt);
 }
 
-
+web3.eth.getBalance(p1).then(console.log);
 
 
 //testCooperativeSettle('0.02', '0.08');
@@ -208,7 +208,7 @@ async function testUnlock(lockIdentifier) {
 
 //testSettleChannelWithLock('0.02', '0.06', '0.05', '0.01');
 
-testUnlock('0x30c84fef13bda51b34671f05bfc5b7b108913b729dc6e4a49a2d430cc03ef47a');
+//testUnlock('0x30c84fef13bda51b34671f05bfc5b7b108913b729dc6e4a49a2d430cc03ef47a');
 
 
 

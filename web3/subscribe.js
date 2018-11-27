@@ -1,6 +1,7 @@
 const Web3 = require('web3');
 
-var web3 = new Web3('ws://54.250.21.165:8546');  //rinkeby
+//var web3 = new Web3('ws://54.250.21.165:8546');  //rinkeby
+var web3 = new Web3('ws://39.96.8.192:8546');  //rinkeby
 
 const contract = '0x4B70A4d4d885cb397E2bD5b0A77DA9bD3EEb033e';
 const openChannelTopic = '0xf43f324498a3f4dd1b8ffef6d6af08dc193c1707f7f669feacf8ff4e50fbdd3a';
@@ -145,5 +146,7 @@ async function subscribeNewBlock() {
         }
     }).on('error', console.error);
 }
+
+web3.eth.isSyncing().then(console.log);
 
 subscribeNewBlock();
