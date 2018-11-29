@@ -38,11 +38,6 @@ async function setTotalDeposit(participant, partner, amount, privateKey) {
 async function cooperativeSettle(p1, p1Balance, p2, p2Balance, channelIdentifier) {
     p1Balance = web3.utils.toWei(p1Balance, 'ether');
     p2Balance = web3.utils.toWei(p2Balance, 'ether');
-    //p1Balance = web3.utils.toHex(p1Balance);
-    //p2Balance = web3.utils.toHex(p2Balance)
-
-    // let message = paymentContract + channelIdentifier.substr(2) + p1.substr(2) + web3.utils.toHex(p1Balance).substr(2) + p2.substr(2) + web3.utils.toHex(p2Balance).substr(2);
-    // console.log("message", message);
 
     let message = web3.utils.soliditySha3(paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance);
     console.log("message", message);

@@ -46,6 +46,8 @@ contract Dice_SC {
      */
 
     constructor(uint256 _revealWindow) public {
+        require(_revealWindow > 0, "invalid reveal window");
+
         revealWindow = _revealWindow;
     }
 
@@ -58,14 +60,18 @@ contract Dice_SC {
      *   public function
      */
 
-    // function setPaymentContract (
-    //     address _paymentContract
-    // )
-    //     public
-    // {
-    //     paymentContract = _paymentContract;
-    // }
-
+    /// @notice initiator settle game
+    /// @param channelIdentifier channelIdentifier of participants
+    /// @param round game round
+    /// @param betMask mask of bet
+    /// @param modulo kind of game
+    /// @param positive initiator address
+    /// @param negative acceptor address
+    /// @param initiatorHashR hash of initiator random
+    /// @param initiatorSignature signature of initiator 
+    /// @param acceptorR acceptor random
+    /// @param acceptorSignature signature of acceptor 
+    /// @param initiatorR initiator random
     function initiatorSettle (
         bytes32 channelIdentifier,
         uint256 round,
@@ -131,6 +137,16 @@ contract Dice_SC {
         emit InitiatorSettled(msg.sender, negative, roundIdentifier, winner);
     }
 
+    /// @notice acceptor settle game
+    /// @param channelIdentifier channelIdentifier of participants
+    /// @param round game round
+    /// @param betMask mask of bet
+    /// @param modulo kind of game
+    /// @param positive initiator address
+    /// @param negative acceptor address
+    /// @param initiatorHashR hash of initiator random
+    /// @param initiatorSignature signature of initiator 
+    /// @param acceptorR acceptor random
     function acceptorSettle (
         bytes32 channelIdentifier,
         uint256 round,
@@ -180,6 +196,10 @@ contract Dice_SC {
         emit AcceptorSettled(positive, negative, roundIdentifier, diceInfo.lastRevealBlock);
     }
 
+    /// @notice initiator should reveal random after acceptor settled
+    /// @param channelIdentifier channelIdentifier of participants
+    /// @param round game round
+    /// @param initiatorR initiator random
     function initiatorReveal (
         bytes32 channelIdentifier,
         uint256 round,
@@ -214,6 +234,8 @@ contract Dice_SC {
         delete roundIdentifier_to_diceInfo[roundIdentifier];
     }
 
+    /// @notice get lock settle result by payment contract
+    /// @param roundIdentifier lock id
     function getResult (
         bytes32 roundIdentifier
     )

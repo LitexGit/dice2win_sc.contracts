@@ -42,7 +42,7 @@ contract Payment_ETH {
     // The key is keccak256(lexicographic order of participant addresses)
     mapping (bytes32 => uint256) public participantsHash_to_channelCounter;
 
-    // channel_identifier => channel. channel identifier is the keccak256(lexicographic order of participant addresses, channelCounter)
+    // channel_identifier => channel. channel identifier is the keccak256(keccak256(lexicographic order of participant addresses), channelCounter)
     mapping (bytes32 => Channel) public channels;
 
     //lockIdentifier is keccak256(channelIdentifier, lockID)
@@ -63,6 +63,11 @@ contract Payment_ETH {
     ) 
         public 
     {
+        require(_game != 0x0, "invalid address");
+        require(_settle_window_min > 0, "invalid settle window min");
+        require(_settle_window_max > 0, "invalid settle window max");
+        require(_settle_window_min < _settle_window_max, "settle window max should be greater than settle window min");
+
         game = Dice_SC(_game);
         settle_window_min = _settle_window_min;
         settle_window_max = _settle_window_max;
@@ -93,6 +98,12 @@ contract Payment_ETH {
      *   public function
      */
 
+    /// @notice Opens a new channel between `participant1` and `participant2`.
+    /// Can be called by anyone.
+    /// @param participant Ethereum address to open channel
+    /// @param partner Ethereum address of the other channel participant
+    /// @param settle_window Number of blocks that need to be mined between a
+    /// call to closeChannel and settleChannel.
     function openChannel(
         address participant, 
         address partner, 
@@ -120,6 +131,10 @@ contract Payment_ETH {
         emit ChannelOpened(participant, partner, channelIdentifier, settle_window, msg.value);
     }
 
+    /// @notice Sets the channel participant total deposit value.
+    /// Can be called by anyone.
+    /// @param participant Channel participant whose deposit is being set.
+    /// @param partner Channel partner address, needed to compute the channel identifier.
     function setTotalDeposit(
         address participant, 
         address partner
@@ -135,6 +150,13 @@ contract Payment_ETH {
         emit ChannelNewDeposit(channelIdentifier, participant, msg.value, participant_struct.deposit);
     }
 
+    /// @notice Cooperative settle channel
+    /// @param participant1_address Ethereum address of a participant
+    /// @param participant1_balance Ethereum balance of a participant
+    /// @param participant2_address Ethereum address of another participant
+    /// @param participant2_balance Ethereum balance of another participant
+    /// @param participant1_signature signature of a participant
+    /// @param participant2_signature signature of another participant
     function cooperativeSettle (
         address participant1_address,
         uint256 participant1_balance,
@@ -202,7 +224,13 @@ contract Payment_ETH {
         emit CooperativeSettled(channelIdentifier, participant1_address, participant2_address, participant1_balance, participant2_balance);
     }
 
-    //balanceHash is keccak256(transferredAmount, lockedAmount, lockID)
+    /// @notice Close the channel defined by the two participant addresses. Only a participant
+    /// may close the channel, providing a balance proof signed by its partner. Callable only once.
+    /// @param partner Channel partner of the `msg.sender`, who provided the signature.
+    /// We need the partner for computing the channel identifier.
+    /// @param balance_hash Hash of (transferred_amount, locked_amount, lockID).
+    /// @param nonce Strictly monotonic value used to order transfers.
+    /// @param signature Partner's signature of the balance proof data.
     function closeChannel (
         address partner, 
         bytes32 balanceHash, 
@@ -230,7 +258,12 @@ contract Payment_ETH {
         emit ChannelClosed(channelIdentifier, msg.sender, balanceHash);
     }
 
-    //balanceHash is keccak256(transferredAmount, lockedAmount, lockID)
+    /// @notice Called on a closed channel, the function allows the non-closing participant to
+    /// provide the last balance proof, which modifies the closing participant's state. 
+    /// @param closingt Channel participant who closed the channel.
+    /// @param balance_hash Hash of (transferred_amount, locked_amount, lockID).
+    /// @param nonce Strictly monotonic value used to order transfers.
+    /// @param signature Closing participant's signature of the balance proof data.
     function nonclosingUpdateBalanceProof(
         address closing, 
         bytes32 balanceHash, 
@@ -262,6 +295,23 @@ contract Payment_ETH {
         emit NonclosingUpdateBalanceProof(channelIdentifier, msg.sender, balanceHash);
     }
 
+    /// @notice Settles the balance between the two parties.
+    /// @param participant1 Channel participant.
+    /// @param participant1_transferred_amount The latest known amount of value transferred
+    /// from `participant1` to `participant2`.
+    /// @param participant1_locked_amount Amount of value owed by `participant1` to
+    /// `participant2`, contained in locked transfers that will be retrieved by calling `unlock`
+    /// after the channel is settled.
+    /// @param participant1_lock_id The latest known lock id of the pending locks
+    /// of `participant1`
+    /// @param participant2 Other channel participant.
+    /// @param participant2_transferred_amount The latest known amount of value transferred
+    /// from `participant2` to `participant1`.
+    /// @param participant2_locked_amount Amount of value owed by `participant2` to
+    /// `participant1`, contained in locked transfers that will be retrieved by calling `unlock`
+    /// after the channel is settled.
+    /// @param participant2_lock_id The latest known lock id of the pending locks
+    /// of `participant2`
     function settleChannel(
         address participant1, 
         uint256 participant1_transferred_amount,
@@ -272,7 +322,6 @@ contract Payment_ETH {
         uint256 participant2_locked_amount,
         uint256 participant2_lock_id
     )
-        //isClosed(participant1, participant2)
         public
     {
         bytes32 channelIdentifier = getChannelIdentifier(participant1, participant2);
@@ -369,6 +418,10 @@ contract Payment_ETH {
         // emit ChannelSettled(channelIdentifier, lockIdentifier, participant2, transferToParticipant2Amount);
     }
 
+    /// @notice unlock locked value after channel settled
+    /// @param participant1 Channel participant.
+    /// @param participant2 Other channel participant.
+    /// @param lockIdentifier identifier of lock to be unlocked
     function unlock(
         address participant1,
         address participant2,
@@ -416,6 +469,10 @@ contract Payment_ETH {
         } 
     }
 
+    /// @notice Returns the unique identifier for the channel
+    /// @param participant Address of a channel participant.
+    /// @param partner Address of the channel partner.
+    /// @return Unique identifier for the channel.
     function getChannelIdentifier (
         address participant, 
         address partner
@@ -435,6 +492,9 @@ contract Payment_ETH {
      *   external function
      */    
 
+    /// @notice Get information of participant 
+    /// @param channelIdentifier identifier of channel
+    /// @param participant whose information to query
     function getParticipantInfo(
         bytes32 channelIdentifier,
         address participant
