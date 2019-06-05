@@ -21,11 +21,16 @@ module.exports = {
       port: 7545,
       network_id: "*"
     }
-  }
+  },
   // solc: {
-  //   optimizer: { // Turning on compiler optimization that removes some local variables during compilation
-  //     enabled: true,
-  //     runs: 200
-  //   }
+    // optimizer: { // Turning on compiler optimization that removes some local variables during compilation
+    //   enabled: true,
+    //   runs: 200
+    // },
   // }
+  compilers: {
+    solc: {
+      version: "0.4.24"  // ex:  "0.4.20". (Default: Truffle's installed solc)
+    }
+ }
 };

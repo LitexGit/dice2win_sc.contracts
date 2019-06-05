@@ -228,7 +228,7 @@ contract Payment_ETH {
     /// may close the channel, providing a balance proof signed by its partner. Callable only once.
     /// @param partner Channel partner of the `msg.sender`, who provided the signature.
     /// We need the partner for computing the channel identifier.
-    /// @param balance_hash Hash of (transferred_amount, locked_amount, lockID).
+    /// @param balanceHash Hash of (transferred_amount, locked_amount, lockID).
     /// @param nonce Strictly monotonic value used to order transfers.
     /// @param signature Partner's signature of the balance proof data.
     function closeChannel (
@@ -260,8 +260,8 @@ contract Payment_ETH {
 
     /// @notice Called on a closed channel, the function allows the non-closing participant to
     /// provide the last balance proof, which modifies the closing participant's state. 
-    /// @param closingt Channel participant who closed the channel.
-    /// @param balance_hash Hash of (transferred_amount, locked_amount, lockID).
+    /// @param closing Channel participant who closed the channel.
+    /// @param balanceHash Hash of (transferred_amount, locked_amount, lockID).
     /// @param nonce Strictly monotonic value used to order transfers.
     /// @param signature Closing participant's signature of the balance proof data.
     function nonclosingUpdateBalanceProof(
