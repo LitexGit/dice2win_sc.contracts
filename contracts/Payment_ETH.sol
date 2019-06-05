@@ -688,7 +688,7 @@ contract Payment_ETH {
             safeAddition(participant2_transferred_amount, participant2_locked_amount)
         );
 
-        if (min == participant1_transferred_amount) {
+        if (min == safeAddition(participant1_transferred_amount, participant1_locked_amount)) {
             margin = participant2.deposit > margin ? margin : participant2.deposit;
             transferToParticipant1Amount = safeSubtract(participant1.deposit + margin, participant2_locked_amount);
             transferToParticipant2Amount = safeSubtract(participant2.deposit - margin, participant1_locked_amount);
